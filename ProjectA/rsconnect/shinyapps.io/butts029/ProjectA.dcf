@@ -1,0 +1,12 @@
+name: ProjectA
+title: ProjectA
+username:
+account: butts029
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2233541
+bundleId: 3097293
+url: https://butts029.shinyapps.io/ProjectA/
+when: 1588521112.59756
+asMultiple: FALSE
+asStatic: FALSE

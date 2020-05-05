@@ -1,0 +1,195 @@
+---
+title: "PSY 8960 Final Project"
+author: "Jessica Butts"
+date: "Due 5/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+The data for this project came from a Kaggle Dataset called [(MBTI) Myers Briggs Personality Type Dataset](https://www.kaggle.com/datasnaek/mbti-type). It contains an MBTI type and a sample of text writings from each person. There are 8,765 observations in the dataset. I chose this dataset because I thought it would be interesting to see if a person's MBTI type is related to their writing style. So, my question is can we classify a person into an MBTI type based on a sample of their writing? This situation requires machine learning because the number of predictors will be close to 1,000, and there are 16 classes that we are trying to classify people into. Multinomial regression does not work well with 1,000 predictors and sparse data.
+
+# Libraries
+
+```{r library, message = FALSE, warning = FALSE}
+library(tidyverse)      # For general data manipulation
+library(RWeka)          # For tokenizing words
+library(tm)             # For creating corpus
+library(qdap)           # For cleaning strings
+library(textstem)       # For lemmatization
+library(caret)          # For machine learning
+library(doParallel)     # For parallelization
+library(parallel)       # For parallelization
+library(wordcloud)      # For wordclouds
+```
+
+# Data Import and Cleaning
+
+```{r import, cache = TRUE, message = FALSE}
+# Data from Kaggle: https://www.kaggle.com/datasnaek/mbti-type
+
+# Import Data set
+mbti <- read_csv("../data/mbti_1.csv")
+
+# # Create corpus and preprocess the text
+# mbti_cp <- mbti %>%
+#   mutate(text = iconv(posts, "UTF-8", "ASCII", sub = "")) %>%
+#   select(text, type) %>%
+#   add_column(doc_id = 1:nrow(mbti), .before = 1) %>%
+#   DataframeSource() %>%
+#   VCorpus() %>%
+#   # remove hashtags
+#   tm_map(content_transformer(function(x) str_remove_all(x, pattern = "#\\w*"))) %>%
+#   # remove urls
+#   tm_map(content_transformer(function(x) str_remove_all(x, "https?://[\\w|.|/]*"))) %>%
+#   # remove ||| separators
+#   tm_map(content_transformer(function(x) str_replace_all(x, "[|||]", " "))) %>%
+#   tm_map(content_transformer(replace_abbreviation)) %>%
+#   tm_map(content_transformer(replace_contraction)) %>%
+#   tm_map(removePunctuation) %>%
+#   tm_map(removeNumbers) %>%
+#   tm_map(content_transformer(str_to_lower)) %>%
+#   tm_map(removeWords,stopwords("en")) %>%
+#   tm_map(stripWhitespace) %>%
+#   tm_map(content_transformer(lemmatize_strings))
+
+# # Function to create unigrams from data
+# tokenizer <- function(x) {
+#   NGramTokenizer(x, Weka_control(min = 1, max = 1))
+# }
+# 
+# # Tokenize and remove sparse terms
+# mbti_dtm <- DocumentTermMatrix(mbti_cp,
+#                                control = list(tokenize = tokenizer)) %>%
+#                                removeSparseTerms(.93)
+
+# # convert DTM to a tibble for analysis
+# mbti_tbl <- as_tibble(as.matrix(mbti_dtm)) 
+
+# # Save cleaned text, so don't have to run every time.
+# saveRDS(mbti_tbl, "../output/cleaned_text")
+
+# Read in cleaned tbl
+mbti_tbl <- readRDS("../output/cleaned_text")
+
+# Remove rows with no remaining terms
+mbti_full <- mbti_tbl[rowSums(mbti_tbl) > 0,]
+mbti_slim <- mbti[rowSums(mbti_tbl) > 0, ]
+
+# Change MBTI Type to a factor
+mbti$type <-  as_factor(mbti$type)
+
+# Add back in the type
+mbti_combined <- cbind(mbti_full, MBTI_type = mbti_slim$type)
+colnames(mbti_combined) <- make.names(colnames(mbti_combined))
+```
+
+# Analysis
+
+I chose to analyze this dataset using discriminant analysis as this is a classification problem. I found two different algorithms that seemed promising. The first is a high-dimensional discriminant analysis. Even though this problem isn't truly high dimensional in the way that a neuroimaging study or genomics study might be, it is still fairly large, and I thought it might yield good results. The second approach is a penalized discriminant analysis. I thought that this might be appropriate since penalization can help to reduce dimensionality. My plan is to compare the accuracy of the two models using 10 fold cross-validation and the accuracy on a holdout sample to see which model provides better results. I also chose to parallelize this part of the code to improve the speed of the code. 
+
+```{r analysis, cache = TRUE}
+# Chosen to be about 10% of the total sample
+holdout.size <- 900
+
+# Create a holdout and training sample
+set.seed(7)
+rows <- sample(x = nrow(mbti_combined), size = holdout.size, replace = F)
+holdout <- mbti_combined[rows,]
+training <- mbti_combined[-rows, ]
+
+# create 10 folds so that folds will be the same for all methods used
+folds <-  createFolds(training$MBTI_type, 10)
+
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+
+# Run high-dimensional discriminant analysis and compute 10-fold cv statistics
+hdda_model <- train(MBTI_type ~ .,
+                    data = training,
+                    method = "hdda",
+                    trControl = trainControl(method = "cv",
+                                             indexOut = folds,
+                                             verboseIter = F)
+)
+
+hdda_model
+
+# Calculate holdout performance - accuracy
+hdda_holdout <- predict(hdda_model, holdout)
+hdda_confusion <- table(holdout$MBTI_type, hdda_holdout)
+hdda_confusion
+hdda_accuracy <- sum(diag(hdda_confusion))/holdout.size
+hdda_accuracy
+
+stopCluster(cl)
+registerDoSEQ()
+```
+
+```{r model2, cache = TRUE}
+# Run second model to see if accuracy improves
+
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+
+# Run sparse LDA and compute 10-fold cv statistics
+pda_model <- train(MBTI_type ~ .,
+                     data = training,
+                     method = "pda",
+                     trControl = trainControl(method = "cv",
+                                              indexOut = folds,
+                                              verboseIter = T)
+)
+
+pda_model
+
+# Calculate holdout performance - accuracy
+pda_holdout <- predict(pda_model, holdout)
+pda_confusion <- table(holdout$MBTI_type, pda_holdout)
+pda_confusion
+pda_accuracy <- sum(diag(pda_confusion))/holdout.size
+pda_accuracy
+
+stopCluster(cl)
+registerDoSEQ()
+```
+
+```{r resamples}
+resamples(list(high_dim = hdda_model,
+               penalized = pda_model))
+
+dotplot(resamples(list(high_dim = hdda_model,
+                       penalized = pda_model)))
+```
+
+In the training samples, the high-dimensional discrimanant analysis had a cross-validation accuracy of 62.8%, and the penalized discriminant analysis had a cross-validation accuracy of 78.5%. In the holdout data set, the accuracies were 59.6% and 60.6% in the high-dimensional and penalized discriminant analyses respectively. While I think that either model is reasonable, I would probably select the penalized discriminant analysis as both its training and holdout accuracy is slightly higher. Overall, I think that there is a relationship between how a person writes and his or her MBTI type. A classification accuracy of roughly 60% is good for a 16 class classification problem especially based on natural language processing. A larger sample might allow for an even higher classification accuracy. 
+
+
+# Visualization
+
+Here, I thought it might be interesting to look at a wordcloud with the top 20 words for each MBTI type to see if there are any patterns evident. I noticed that a few of the types had their type in the wordcloud e.g. ENFJ, but there didn't seem to be a pattern of when this occurred and when it didn't. There are a few words like 'people' and 'really' that seem to be in all of the word clouds, so future work might remove these words since they probably aren't helpful in the classification. 
+
+```{r visualization}
+# Define function to create wordcloud
+createWC <- function(type){
+  tbl <- mbti_full[which(mbti_combined$MBTI_type == type), ]
+  wc_tbl <- data.frame(word = colnames(tbl), 
+                      freq = colSums(tbl))
+  wordcloud(wc_tbl$word, wc_tbl$freq, 
+            max.words = 20,
+            scale = c(.8,1.4))
+}
+
+# Plot 4 by 4 grid of wordclouds for each MBTI Type
+layout(matrix(c(1:16), nrow=4, byrow=TRUE), heights=rep(2, 16))
+par(mar=rep(0, 4))
+for(i in c("ENFJ", "ENFP", "ENTJ", "ENTP", "ESFJ", "ESFP", "ESTJ", "ESTP",
+           "INFJ", "INFP", "INTJ", "INTP", "ISFJ", "ISFP", "ISTJ", "ISTP")){
+  createWC(i)
+  text(.5, 1, i, col = "red")
+}
+```
