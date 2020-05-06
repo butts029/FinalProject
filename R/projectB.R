@@ -33,6 +33,7 @@ for(i in 0:(num_pages%/%10)){
   nodes_cite <- html_nodes(page, ".gs_a")
   nodes_link <- html_nodes(page, "h3 a")
   
+  
   # Convert html to text and parse for desired information
   all_info <- html_text(nodes_cite)
   author <- str_extract(all_info, "([a-zA-Z ,.\\-\\u2026]+)") %>%
@@ -41,20 +42,24 @@ for(i in 0:(num_pages%/%10)){
               str_remove_all(", $| $")
   year <- str_match(all_info, "-[a-zA-Z ,&\\u2026[:blank:]]* ([0-9]{4})")[,2]
   # determine whether citation that doesn't have a link
-  has_link <- which(str_detect(html_text(nodes_titles), "\\[CITATION\\]\\[C\\]" ))
+  # This will throw a warning message, but it gives the desired results
+  has_link <- which(str_detect(html_nodes(page, "div h3"), 'class=\\"gs_ctu\\"'))
   title <- html_text(nodes_titles) %>%
               str_remove_all("^(\\[PDF\\]\\[PDF\\] |\\[CITATION\\]\\[C\\] |\\[HTML\\]\\[HTML\\] )") 
   link <- html_attr(nodes_link,"href")
-  for(j in has_link){
-    link <- append(link, "", after=(j-1))
-  }
   
   # Cover situation where link is in title and not in href tag (eg 1st element on first page as of 5/5/2020)
-  for(j in which(str_detect(title, "http"))){
-    ind_link <- str_extract(title[j], "http[a-zA-Z0-9?_\\-/.: ]*")
-    link <- append(link, ind_link, after=(j-1))
-    title[j] <- str_remove(title[j], "http[a-zA-Z0-9?_\\-/.: ]*") %>%
-                  str_remove_all(" $")
+  # Also need to cover [Citation] entries that don't have a link
+  for(j in has_link){
+    if(str_detect(title[j], "http")){
+      ind_link <- str_extract(title[j], "http[a-zA-Z0-9?_\\-/.: ]*")
+      link <- append(link, ind_link, after=(j-1))
+      title[j] <- str_remove(title[j], "http[a-zA-Z0-9?_\\-/.: ]*") %>%
+        str_remove_all(" $")
+    } else {
+      link <- append(link, "", after=(j-1))
+    }
+  
   }
   
   # Save results
