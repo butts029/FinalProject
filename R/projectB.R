@@ -42,8 +42,7 @@ for(i in 0:(num_pages%/%10)){
               str_remove_all(", $| $")
   year <- str_match(all_info, "-[a-zA-Z ,&\\u2026[:blank:]]* ([0-9]{4})")[,2]
   # determine whether citation that doesn't have a link
-  # This will throw a warning message, but it gives the desired results
-  has_link <- which(str_detect(html_nodes(page, "div h3"), 'class=\\"gs_ctu\\"'))
+  has_link <- which(str_detect(as.character(html_nodes(page, "div h3")), 'class=\\"gs_ctu\\"'))
   title <- html_text(nodes_titles) %>%
               str_remove_all("^(\\[PDF\\]\\[PDF\\] |\\[CITATION\\]\\[C\\] |\\[HTML\\]\\[HTML\\] )") 
   link <- html_attr(nodes_link,"href")
