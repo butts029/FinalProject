@@ -30,7 +30,7 @@ ui <- fluidPage(
 
 
         mainPanel(
-           plotOutput("wordcloud", height = 500, width = 500),
+           plotOutput("wordcloud", height = 750, width = 750),
            tableOutput("sum_table"),
            plotOutput("sum_bar")
         )
@@ -42,10 +42,10 @@ server <- function(input, output) {
     # Authentication process
     create_token(
         app = "finalproject",
-        consumer_key = "apikeygoeshere",
-        consumer_secret = "apisecretgoeshere",
-        access_token = "tokengoeshere",
-        access_secret = "secrettokengoeshere",
+        consumer_key = "yVnBvFRZsC0W3EEsDOIlMeIU2",
+        consumer_secret = "bKS67NF1pNcrjpkuB4u62Wgaivs3A6zCdTeVa51IMktcdUanVu",
+        access_token = "859134854-EvgfutSmqGAZmPgk73K312WSaHbWUqdTAWHKXuaI",
+        access_secret = "pjL3WMkRqm1go24kLHnRzVq1qmQNHKm8cUmhkSbx0H4RZ"
     )
     
     process_tweets <- function(term){
