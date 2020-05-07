@@ -42,10 +42,10 @@ server <- function(input, output) {
     # Authentication process
     create_token(
         app = "finalproject",
-        consumer_key = "yVnBvFRZsC0W3EEsDOIlMeIU2",
-        consumer_secret = "bKS67NF1pNcrjpkuB4u62Wgaivs3A6zCdTeVa51IMktcdUanVu",
-        access_token = "859134854-EvgfutSmqGAZmPgk73K312WSaHbWUqdTAWHKXuaI",
-        access_secret = "pjL3WMkRqm1go24kLHnRzVq1qmQNHKm8cUmhkSbx0H4RZ"
+        consumer_key = "apikeygoeshere",
+        consumer_secret = "secretgoeskey",
+        access_token = "tokengoeshere",
+        access_secret = "secrettokengoeshere"
     )
     
     process_tweets <- function(term){
